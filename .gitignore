@@ -1,0 +1,9 @@
+node_modules/
+.expo/
+dist/
+.env
+*.keystore
+*.jks
+google-services.json
+android/
+ios/

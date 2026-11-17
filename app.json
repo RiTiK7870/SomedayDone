@@ -1,0 +1,34 @@
+{
+  "expo": {
+    "name": "SomedayDone",
+    "slug": "somedaydone",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "somedaydone",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#E8DCC4",
+    "android": {
+      "package": "com.somedaydone.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#1F3D2B"
+      }
+    },
+    "plugins": [
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "color": "#8B5CF6"
+        }
+      ],
+      "expo-status-bar",
+      "expo-font"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "788e29ab-8447-408a-9866-5004d802b04c"
+      }
+    }
+  }
+}
