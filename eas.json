@@ -7,11 +7,22 @@
         "buildType": "apk"
       }
     },
-    "production": {
+    "preview": {
+      "distribution": "internal",
       "android": {
-        "buildType": "app-bundle"
-      },
-      "autoIncrement": true
+        "buildType": "apk"
+      }
+    },
+    "production": {
+      "environment": "production",
+      "distribution": "internal",
+      "autoIncrement": true,
+      "android": {
+        "buildType": "apk"
+      }
     }
+  },
+  "cli": {
+    "appVersionSource": "remote"
   }
 }
