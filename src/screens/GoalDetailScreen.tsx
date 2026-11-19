@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Pressable,
@@ -16,6 +16,8 @@ import {
 } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
+import { StepSuggester } from "../components/StepSuggester";
+import { scheduleDeletion, subscribeUndo } from "../lib/undo";
 import type { RootStackParamList } from "../navigation/RootNavigator";
 import {
   addStep,
@@ -39,6 +41,7 @@ import { userMessage, AppError } from "../lib/errors";
 import { isValidDate, isValidTime, validateStepTitle } from "../lib/validate";
 import {
   cancelReminder,
+  cancelGoalNotifications,
   hasNotificationPermission,
   nextFireDate,
   openSystemNotificationSettings,
@@ -66,6 +69,16 @@ import {
 import { colors, radius, space, type } from "../theme";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
+
+// Stops a goal's reminder: cancels its notifications and marks it paused in the database.
+async function stopGoalReminder(
+  goalId: string,
+  notificationId: string | null | undefined,
+) {
+  await cancelReminder(notificationId);
+  await cancelGoalNotifications(goalId);
+  await setReminderEnabled(goalId, false, null);
+}
 
 export function GoalDetailScreen() {
   const navigation = useNavigation<Nav>();
@@ -98,6 +111,12 @@ export function GoalDetailScreen() {
       const r =
         fetched ?? (Array.isArray(g.reminders) ? g.reminders[0] : undefined);
       setSavedReminder(r ?? null);
+
+      // A finished or archived goal must not keep reminding. Stop any leftover reminder.
+      if (r && r.is_enabled && !isActive(g)) {
+        await stopGoalReminder(goalId, r.notification_id);
+        setSavedReminder({ ...r, is_enabled: false, notification_id: null });
+      }
       if (r) {
         const d = new Date(r.reminder_time);
         setFreq(r.frequency);
@@ -116,6 +135,9 @@ export function GoalDetailScreen() {
       load();
     }, [load]),
   );
+
+  // Refresh when a deletion is undone or committed elsewhere.
+  useEffect(() => subscribeUndo(() => { load(); }), [load]);
 
   // Runs a write, then reloads. Blocks double taps and reports failures without losing input.
   async function run(action: () => Promise<unknown>) {
@@ -154,6 +176,7 @@ export function GoalDetailScreen() {
   const steps = sortedSteps(goal);
   const progress = progressFor(goal);
   const reminder: Reminder | undefined = savedReminder ?? undefined;
+  const goalActive = isActive(goal);
   const canComplete = goal.status !== "completed" && goal.status !== "archived";
   const allStepsDone =
     progress.total > 0 && progress.done === progress.total && canComplete;
@@ -188,25 +211,16 @@ export function GoalDetailScreen() {
     run(() => swapSteps(steps[index], other));
   }
 
+  // Hides the step straight away; it is deleted after the undo window unless undone.
   function confirmRemoveStep(step: Step) {
-    Alert.alert("Remove this step?", step.title, [
-      { text: "Keep", style: "cancel" },
-      {
-        text: "Remove",
-        style: "destructive",
-        onPress: () => run(() => deleteStep(step.id)),
-      },
-    ]);
+    scheduleDeletion(`step:${step.id}`, step.title, () => deleteStep(step.id));
+    load();
   }
 
   function markComplete() {
     run(async () => {
+      if (reminder) await stopGoalReminder(goal!.id, reminder.notification_id);
       await completeGoal(goal!.id);
-
-      if (reminder) {
-        await cancelReminder(reminder.notification_id);
-        await setReminderEnabled(goal!.id, false, null);
-      }
     });
   }
 
@@ -222,25 +236,31 @@ export function GoalDetailScreen() {
         setGoalStatus(goal!.id, anyDone ? "in_progress" : "not_started"),
       );
     } else {
-      run(() => setGoalStatus(goal!.id, "archived"));
+      run(async () => {
+        if (reminder) await stopGoalReminder(goal!.id, reminder.notification_id);
+        await setGoalStatus(goal!.id, "archived");
+      });
     }
   }
 
   function confirmDeleteGoal() {
     Alert.alert(
       "Delete this goal?",
-      "Its steps and reminder will be deleted too. This cannot be undone.",
+      "Its steps and reminder will be deleted. You can undo this for a few seconds.",
       [
         { text: "Keep", style: "cancel" },
         {
           text: "Delete",
           style: "destructive",
-          onPress: async () => {
-            await cancelReminder(reminder?.notification_id);
-            run(async () => {
-              await deleteGoal(goal!.id);
-              navigation.goBack();
+          onPress: () => {
+            const id = goal!.id;
+            const notificationId = reminder?.notification_id;
+            scheduleDeletion(`goal:${id}`, goal!.title, async () => {
+              await cancelReminder(notificationId);
+              await cancelGoalNotifications(id);
+              await deleteGoal(id);
             });
+            navigation.goBack();
           },
         },
       ],
@@ -333,12 +353,9 @@ export function GoalDetailScreen() {
   }
 
   function pauseOrResume() {
-    if (!reminder) return;
+    if (!reminder || !goalActive) return;
     if (reminder.is_enabled) {
-      run(async () => {
-        await cancelReminder(reminder.notification_id);
-        await setReminderEnabled(goal!.id, false, null);
-      });
+      run(() => stopGoalReminder(goal!.id, reminder.notification_id));
     } else {
       run(async () => {
         const fireAt = nextFireDate(
@@ -364,7 +381,7 @@ export function GoalDetailScreen() {
     });
   }
 
-  const showReminderForm = !reminder || editing;
+  const showReminderForm = goalActive && (!reminder || editing);
 
   return (
     <SafeAreaView style={styles.safe} edges={["bottom"]}>
@@ -441,6 +458,7 @@ export function GoalDetailScreen() {
 
         <View style={{ gap: space.sm }}>
           <Text style={type.title}>Steps</Text>
+          <StepSuggester goal={goal} onAdded={() => { load(); }} />
           {steps.length === 0 ? (
             <Text style={type.small}>
               Break this dream into small steps you can finish.
@@ -583,26 +601,38 @@ export function GoalDetailScreen() {
                 </View>
               </View>
 
-              <View style={{ flexDirection: "row", gap: space.sm }}>
-                <Button
-                  label={reminder.is_enabled ? "Pause" : "Resume"}
-                  variant="ghost"
-                  onPress={pauseOrResume}
-                  style={{ flex: 1 }}
-                />
-                <Button
-                  label="Reset"
-                  variant="secondary"
-                  onPress={startEditing}
-                  style={{ flex: 1 }}
-                />
-              </View>
+              {goalActive ? (
+                <View style={{ flexDirection: "row", gap: space.sm }}>
+                  <Button
+                    label={reminder.is_enabled ? "Pause" : "Resume"}
+                    variant="ghost"
+                    onPress={pauseOrResume}
+                    style={{ flex: 1 }}
+                  />
+                  <Button
+                    label="Reset"
+                    variant="secondary"
+                    onPress={startEditing}
+                    style={{ flex: 1 }}
+                  />
+                </View>
+              ) : (
+                <Text style={type.small}>
+                  This goal is finished, so its reminder has stopped.
+                </Text>
+              )}
               <Button
                 label="Remove reminder"
                 variant="danger"
                 onPress={removeReminder}
               />
             </View>
+          ) : null}
+
+          {!goalActive && !reminder ? (
+            <Text style={type.small}>
+              Reminders are for active goals. Reopen or restore this goal to set one.
+            </Text>
           ) : null}
 
           {showReminderForm ? (

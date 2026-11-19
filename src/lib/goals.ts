@@ -9,6 +9,7 @@ import type {
 } from "../types";
 import { calcProgress } from "./progress";
 import { AppError } from "./errors";
+import { isPendingDeletion } from "./undo";
 
 // One query loads goals with their steps and reminder (avoids N+1 requests).
 const GOAL_SELECT = "*, goal_steps(*), reminders(*)";
@@ -30,11 +31,15 @@ export async function listGoals(): Promise<Goal[]> {
     .order("updated_at", { ascending: false })
     .range(0, PAGE_SIZE - 1);
   if (error) throw error;
-  return (data ?? []).map((goal) => ({
-    ...goal,
-    goal_steps: Array.isArray(goal.goal_steps) ? goal.goal_steps : [],
-    reminders: Array.isArray(goal.reminders) ? goal.reminders : [],
-  })) as Goal[];
+  return (data ?? [])
+    .filter((goal) => !isPendingDeletion(`goal:${goal.id}`))
+    .map((goal) => ({
+      ...goal,
+      goal_steps: (Array.isArray(goal.goal_steps) ? goal.goal_steps : []).filter(
+        (s) => !isPendingDeletion(`step:${s.id}`),
+      ),
+      reminders: Array.isArray(goal.reminders) ? goal.reminders : [],
+    })) as Goal[];
 }
 
 export async function getGoal(id: string): Promise<Goal> {
@@ -49,7 +54,9 @@ export async function getGoal(id: string): Promise<Goal> {
 
   return {
     ...data,
-    goal_steps: Array.isArray(data.goal_steps) ? data.goal_steps : [],
+    goal_steps: (Array.isArray(data.goal_steps) ? data.goal_steps : []).filter(
+      (s) => !isPendingDeletion(`step:${s.id}`),
+    ),
     reminders: Array.isArray(data.reminders) ? data.reminders : [],
   } as Goal;
 }
@@ -175,6 +182,23 @@ export async function addStep(goal: Goal, title: string): Promise<void> {
   const { error } = await supabase
     .from("goal_steps")
     .insert({ goal_id: goal.id, title: title.trim(), position: nextPosition });
+  if (error) throw error;
+  if (goal.status === "not_started")
+    await setGoalStatus(goal.id, "in_progress");
+}
+
+// Adds several steps at once (used by the step suggestions after the user reviews them).
+export async function addSteps(goal: Goal, titles: string[]): Promise<void> {
+  const clean = titles
+    .map((t) => t.trim().slice(0, 200))
+    .filter(Boolean);
+  if (clean.length === 0) return;
+
+  const start =
+    goal.goal_steps.reduce((max, s) => Math.max(max, s.position), -1) + 1;
+  const { error } = await supabase.from("goal_steps").insert(
+    clean.map((title, i) => ({ goal_id: goal.id, title, position: start + i })),
+  );
   if (error) throw error;
   if (goal.status === "not_started")
     await setGoalStatus(goal.id, "in_progress");

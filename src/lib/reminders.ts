@@ -86,6 +86,23 @@ export async function cancelReminder(notificationId: string | null | undefined):
   await Notifications.cancelScheduledNotificationAsync(notificationId).catch(() => undefined);
 }
 
+// Cancels every scheduled notification that belongs to a goal. This catches reminders
+// whose saved notification ID is missing or out of date.
+export async function cancelGoalNotifications(goalId: string): Promise<void> {
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync().catch(
+    () => [],
+  );
+  await Promise.all(
+    scheduled
+      .filter((n) => n.content.data?.goalId === goalId)
+      .map((n) =>
+        Notifications.cancelScheduledNotificationAsync(n.identifier).catch(
+          () => undefined,
+        ),
+      ),
+  );
+}
+
 export async function cancelAllReminders(): Promise<void> {
   await Notifications.cancelAllScheduledNotificationsAsync().catch(() => undefined);
 }

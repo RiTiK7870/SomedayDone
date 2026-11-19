@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Pressable,
   RefreshControl,
@@ -22,6 +22,7 @@ import {
   progressFor,
 } from "../lib/goals";
 import { userMessage } from "../lib/errors";
+import { subscribeUndo } from "../lib/undo";
 import type { Goal, Step } from "../types";
 import {
   Button,
@@ -66,6 +67,8 @@ export function HomeScreen() {
       load();
     }, [load]),
   );
+
+  useEffect(() => subscribeUndo(() => { load(); }), [load]);
 
   const firstName = (
     session?.user.user_metadata?.full_name as string | undefined

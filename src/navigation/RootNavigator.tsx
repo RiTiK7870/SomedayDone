@@ -12,6 +12,7 @@ import { GoalsScreen } from '../screens/GoalsScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { GoalDetailScreen } from '../screens/GoalDetailScreen';
 import { GoalFormScreen } from '../screens/GoalFormScreen';
+import { TemplatesScreen } from '../screens/TemplatesScreen';
 
 export type TabParamList = {
   Home: undefined;
@@ -24,6 +25,7 @@ export type RootStackParamList = {
   Tabs: NavigatorScreenParams<TabParamList> | undefined;
   GoalDetail: { goalId: string };
   GoalForm: { goalId?: string } | undefined;
+  Templates: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -96,6 +98,7 @@ export function RootNavigator() {
               component={GoalFormScreen}
               options={{ presentation: 'modal', title: 'Goal' }}
             />
+            <Stack.Screen name="Templates" component={TemplatesScreen} options={{ title: 'Start from a template' }} />
           </>
         ) : (
           <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />

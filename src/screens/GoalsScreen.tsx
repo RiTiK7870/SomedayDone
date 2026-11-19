@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FlatList,
   RefreshControl,
@@ -14,6 +14,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/RootNavigator";
 import { listGoals, sortGoals } from "../lib/goals";
 import { userMessage } from "../lib/errors";
+import { subscribeUndo } from "../lib/undo";
 import { CATEGORIES, STATUS_LABEL, STATUSES } from "../types";
 import type { Goal, GoalStatus, Category } from "../types";
 import { Button, Chip, EmptyState, ErrorBanner } from "../components/ui";
@@ -49,6 +50,8 @@ export function GoalsScreen() {
       load();
     }, [load]),
   );
+
+  useEffect(() => subscribeUndo(() => { load(); }), [load]);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();

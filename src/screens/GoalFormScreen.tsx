@@ -79,6 +79,14 @@ export function GoalFormScreen() {
 
         {error ? <ErrorBanner message={error} /> : null}
 
+        {!goalId ? (
+          <Button
+            label="Start from a template"
+            variant="ghost"
+            onPress={() => navigation.navigate('Templates')}
+          />
+        ) : null}
+
         <Field
           label="Title"
           value={title}

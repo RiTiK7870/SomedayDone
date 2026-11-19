@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import {
   Alert,
   Linking,
@@ -14,6 +14,9 @@ import { useAuth } from "../context/AuthContext";
 import { computeTotals, fetchProfile, listGoals } from "../lib/goals";
 import { userMessage } from "../lib/errors";
 import { cancelAllReminders } from "../lib/reminders";
+import { weeklyStepCounts } from "../lib/history";
+import { WeeklyChart } from "../components/WeeklyChart";
+import type { Goal } from "../types";
 import { Button, Card, ErrorBanner } from "../components/ui";
 import { colors, radius, space, type } from "../theme";
 
@@ -31,6 +34,8 @@ export function ProfileScreen() {
   });
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const buckets = useMemo(() => weeklyStepCounts(goals), [goals]);
 
   const load = useCallback(async () => {
     try {
@@ -47,6 +52,7 @@ export function ProfileScreen() {
           null,
       );
       setTotals(computeTotals(goals));
+      setGoals(goals);
     } catch (e) {
       setError(userMessage(e));
     }
@@ -120,6 +126,10 @@ export function ProfileScreen() {
             {totals.goalsCreated} dreams · {totals.goalsCompleted} finished ·{" "}
             {totals.stepsCompleted} steps done
           </Text>
+          <Text style={[type.label, { marginTop: space.xs }]}>
+            Steps done each week
+          </Text>
+          <WeeklyChart buckets={buckets} />
         </Card>
 
         <Card style={{ gap: space.sm }}>
