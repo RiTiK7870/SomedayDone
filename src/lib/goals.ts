@@ -264,6 +264,17 @@ export async function setReminderEnabled(
   if (error) throw error;
 }
 
+// Reads the reminder row directly, so the screen does not depend on the embedded join.
+export async function fetchReminder(goalId: string): Promise<Reminder | null> {
+  const { data, error } = await supabase
+    .from("reminders")
+    .select("*")
+    .eq("goal_id", goalId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as Reminder | null) ?? null;
+}
+
 export async function deleteReminder(goalId: string): Promise<void> {
   const { error } = await supabase
     .from("reminders")

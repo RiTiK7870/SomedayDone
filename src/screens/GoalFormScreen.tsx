@@ -11,6 +11,7 @@ import { validateGoal } from '../lib/validate';
 import { CATEGORIES } from '../types';
 import type { Category } from '../types';
 import { Button, Chip, ErrorBanner, Field } from '../components/ui';
+import { DateField } from '../components/DateTimePicker';
 import { colors, space, type } from '../theme';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -105,15 +106,12 @@ export function GoalFormScreen() {
           </View>
         </View>
 
-        <Field
+        <DateField
           label="Target date (optional)"
           value={targetDate}
-          onChangeText={setTargetDate}
-          placeholder="YYYY-MM-DD"
-          autoCapitalize="none"
-          keyboardType="numbers-and-punctuation"
-          maxLength={10}
-          editable={!loading}
+          onChange={setTargetDate}
+          optional
+          placeholder="Pick a target date"
         />
 
         <Button label={goalId ? 'Save changes' : 'Create goal'} onPress={save} loading={saving} disabled={loading} />

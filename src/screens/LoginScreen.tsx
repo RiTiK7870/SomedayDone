@@ -1,11 +1,20 @@
 import React, { useState } from "react";
-import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import { signInWithGoogle } from "../lib/auth";
-import { userMessage } from "../lib/errors";
-import { AuthCancelledError } from "../lib/errors";
-import { Button, ErrorBanner } from "../components/ui";
-import { colors, radius, space, type } from "../theme";
+import { userMessage, AuthCancelledError } from "../lib/errors";
+import { ErrorBanner } from "../components/ui";
+import { colors, displayFont, radius, space, type } from "../theme";
+
+type IconName = React.ComponentProps<typeof Ionicons>["name"];
 
 export function LoginScreen() {
   const [busy, setBusy] = useState(false);
@@ -26,66 +35,64 @@ export function LoginScreen() {
     }
   }
 
+  const terms = process.env.EXPO_PUBLIC_TERMS_URL;
+  const privacy = process.env.EXPO_PUBLIC_PRIVACY_URL;
+
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.root} edges={["top", "bottom"]}>
       <View style={styles.top}>
-        <Text style={type.hero}>SomedayDone</Text>
-        <Text style={[type.body, styles.tagline]}>
+        <View style={styles.badge}>
+          <Ionicons name="sparkles" size={26} color={colors.sand} />
+        </View>
+        <Text style={styles.hero}>SomedayDone</Text>
+        <Text style={styles.tagline}>
           Stop dreaming about someday.{"\n"}Start doing today.
         </Text>
 
-        <View style={styles.preview}>
-          {/* Three swatches echo the brand palette without any imagery. */}
-          <View style={[styles.swatch, { backgroundColor: colors.forest }]} />
-          <View style={[styles.swatch, { backgroundColor: colors.purple }]} />
-          <View
-            style={[
-              styles.swatch,
-              {
-                backgroundColor: colors.card,
-                borderWidth: 1,
-                borderColor: colors.line,
-              },
-            ]}
-          />
+        <View style={styles.features}>
+          <Feature icon="flag-outline" text="Name the dream you keep putting off" />
+          <Feature icon="footsteps-outline" text="Break it into small, doable steps" />
+          <Feature icon="notifications-outline" text="Get a gentle nudge when you choose" />
         </View>
-        <Text style={[type.body, { color: colors.muted, textAlign: "center" }]}>
-          One dream. A few small steps. Steady progress.
-        </Text>
       </View>
 
-      <View style={styles.bottom}>
+      <View style={styles.sheet}>
+        <Text style={styles.sheetTitle}>Welcome</Text>
+        <Text style={styles.sheetBody}>
+          Sign in to pick up where you left off.
+        </Text>
+
         {message ? <ErrorBanner message={message} /> : null}
-        <Button
-          label="Continue with Google"
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Continue with Google"
+          accessibilityState={{ disabled: busy, busy }}
           onPress={onGoogle}
-          loading={busy}
-        />
-        {/* <Text style={[type.small, styles.legal]}>
-          By continuing you agree to our{' '}
-          <Text style={styles.link} onPress={() => Linking.openURL(process.env.EXPO_PUBLIC_TERMS_URL ?? '')}>Terms</Text>
-          {' '}and{' '}
-          <Text style={styles.link} onPress={() => Linking.openURL(process.env.EXPO_PUBLIC_PRIVACY_URL ?? '')}>Privacy Policy</Text>.
-        </Text> */}
-        {process.env.EXPO_PUBLIC_TERMS_URL &&
-        process.env.EXPO_PUBLIC_PRIVACY_URL ? (
-          <Text style={[type.small, styles.legal]}>
+          disabled={busy}
+          style={({ pressed }) => [
+            styles.googleBtn,
+            { opacity: busy ? 0.7 : pressed ? 0.85 : 1 },
+          ]}
+        >
+          {busy ? (
+            <ActivityIndicator color={colors.forest} />
+          ) : (
+            <>
+              <Ionicons name="logo-google" size={20} color={colors.forest} />
+              <Text style={styles.googleText}>Continue with Google</Text>
+            </>
+          )}
+        </Pressable>
+
+        {terms && privacy ? (
+          <Text style={styles.legal}>
             By continuing you agree to our{" "}
-            <Text
-              style={styles.link}
-              onPress={() =>
-                Linking.openURL(process.env.EXPO_PUBLIC_TERMS_URL!)
-              }
-            >
+            <Text style={styles.link} onPress={() => Linking.openURL(terms)}>
               Terms
             </Text>{" "}
             and{" "}
-            <Text
-              style={styles.link}
-              onPress={() =>
-                Linking.openURL(process.env.EXPO_PUBLIC_PRIVACY_URL!)
-              }
-            >
+            <Text style={styles.link} onPress={() => Linking.openURL(privacy)}>
               Privacy Policy
             </Text>
             .
@@ -96,26 +103,87 @@ export function LoginScreen() {
   );
 }
 
+function Feature({ icon, text }: { icon: IconName; text: string }) {
+  return (
+    <View style={styles.feature}>
+      <View style={styles.featureIcon}>
+        <Ionicons name={icon} size={20} color={colors.purple} />
+      </View>
+      <Text style={[type.body, { flex: 1 }]}>{text}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  safe: {
+  root: {
     flex: 1,
     backgroundColor: colors.sand,
     paddingHorizontal: space.lg,
     justifyContent: "space-between",
   },
-  top: { flex: 1, justifyContent: "center", gap: space.md },
-  tagline: { color: colors.forest },
-  preview: {
-    flexDirection: "row",
-    gap: space.sm,
-    alignSelf: "center",
-    marginVertical: space.lg,
+  top: { flex: 1, justifyContent: "center", gap: space.sm },
+  badge: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.forest,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: space.sm,
   },
-  swatch: { width: 64, height: 88, borderRadius: radius.md },
-  bottom: { paddingBottom: space.lg, gap: space.md },
-  legal: { textAlign: "center" },
+  hero: { ...type.hero, fontSize: 36, lineHeight: 42 },
+  tagline: {
+    fontSize: 17,
+    lineHeight: 24,
+    color: colors.muted,
+    marginBottom: space.lg,
+  },
+  features: { gap: space.sm },
+  feature: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.md,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    padding: space.md,
+  },
+  featureIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.purpleSoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sheet: {
+    backgroundColor: colors.forest,
+    borderRadius: radius.lg,
+    padding: space.lg,
+    gap: space.md,
+    marginBottom: space.md,
+  },
+  sheetTitle: {
+    fontFamily: displayFont,
+    fontSize: 24,
+    fontWeight: "700",
+    color: colors.sand,
+  },
+  sheetBody: { fontSize: 15, lineHeight: 22, color: "#C9D6CC" },
+  googleBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: space.sm,
+    minHeight: 54,
+    borderRadius: radius.pill,
+    backgroundColor: colors.sand,
+  },
+  googleText: { fontSize: 16, fontWeight: "700", color: colors.forest },
+  legal: { fontSize: 13, lineHeight: 18, color: "#C9D6CC", textAlign: "center" },
   link: {
-    color: colors.forest,
+    color: colors.sand,
     textDecorationLine: "underline",
     fontWeight: "600",
   },

@@ -19,7 +19,6 @@ import { colors, radius, space, type } from "../theme";
 
 const PRIVACY = process.env.EXPO_PUBLIC_PRIVACY_URL ?? "";
 const TERMS = process.env.EXPO_PUBLIC_TERMS_URL ?? "";
-const DELETE_URL = process.env.EXPO_PUBLIC_DELETE_URL ?? "";
 const SUPPORT = process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? "";
 
 export function ProfileScreen() {
@@ -154,7 +153,6 @@ export function ProfileScreen() {
           <Text style={type.title}>Delete account</Text>
           <Text style={type.small}>
             Removes your account, goals, steps, and reminders from our servers.
-            You can also request deletion on the web without the app.
           </Text>
           <Button
             label="Delete my account"
@@ -162,12 +160,6 @@ export function ProfileScreen() {
             onPress={confirmDelete}
             loading={deleting}
           />
-          {DELETE_URL ? (
-            <LinkRow
-              label="Request deletion on the web"
-              onPress={() => Linking.openURL(DELETE_URL)}
-            />
-          ) : null}
         </Card>
       </ScrollView>
     </SafeAreaView>

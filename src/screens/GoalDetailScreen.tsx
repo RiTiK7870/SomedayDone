@@ -1,12 +1,10 @@
 import React, { useCallback, useState } from "react";
 import {
   Alert,
-  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -25,6 +23,7 @@ import {
   deleteReminder,
   deleteStep,
   getGoal,
+  fetchReminder,
   progressFor,
   saveReminder,
   setGoalStatus,
@@ -47,7 +46,7 @@ import {
 } from "../lib/reminders";
 import { useAuth } from "../context/AuthContext";
 import { STATUS_LABEL } from "../types";
-import type { Frequency, Goal, Step } from "../types";
+import type { Frequency, Goal, Reminder, Step } from "../types";
 import {
   Button,
   Card,
@@ -56,6 +55,14 @@ import {
   Field,
   ProgressBar,
 } from "../components/ui";
+import {
+  DateField,
+  TimeField,
+  formatIsoDate,
+  formatTime12,
+  toHHMM,
+  toIsoDate,
+} from "../components/DateTimePicker";
 import { colors, radius, space, type } from "../theme";
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -75,22 +82,27 @@ export function GoalDetailScreen() {
   const [time, setTime] = useState("08:00");
   const [date, setDate] = useState("");
   const [permissionOff, setPermissionOff] = useState(false);
+  // true while the reminder form is open for a goal that already has a reminder.
+  const [editing, setEditing] = useState(false);
+  // The saved reminder, read directly from the reminders table.
+  const [savedReminder, setSavedReminder] = useState<Reminder | null>(null);
 
   const load = useCallback(async () => {
     try {
       setError(null);
-      const g = await getGoal(goalId);
+      const [g, fetched] = await Promise.all([
+        getGoal(goalId),
+        fetchReminder(goalId),
+      ]);
       setGoal(g);
-      const r = Array.isArray(g.reminders) ? g.reminders[0] : undefined;
+      const r =
+        fetched ?? (Array.isArray(g.reminders) ? g.reminders[0] : undefined);
+      setSavedReminder(r ?? null);
       if (r) {
         const d = new Date(r.reminder_time);
         setFreq(r.frequency);
-        setTime(
-          `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`,
-        );
-        setDate(
-          `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
-        );
+        setTime(toHHMM(d));
+        setDate(toIsoDate(d));
       }
     } catch (e) {
       setError(userMessage(e));
@@ -141,12 +153,17 @@ export function GoalDetailScreen() {
 
   const steps = sortedSteps(goal);
   const progress = progressFor(goal);
-  const reminder = Array.isArray(goal.reminders)
-    ? goal.reminders[0]
-    : undefined;
+  const reminder: Reminder | undefined = savedReminder ?? undefined;
   const canComplete = goal.status !== "completed" && goal.status !== "archived";
   const allStepsDone =
     progress.total > 0 && progress.done === progress.total && canComplete;
+
+  // Human-readable summary of the saved reminder, e.g. "Every day at 8:00 AM".
+  const reminderWhen = reminder
+    ? reminder.frequency === "daily"
+      ? `Every day at ${formatTime12(toHHMM(new Date(reminder.reminder_time)))}`
+      : `Once on ${formatIsoDate(toIsoDate(new Date(reminder.reminder_time)))} at ${formatTime12(toHHMM(new Date(reminder.reminder_time)))}`
+    : "";
 
   async function addNewStep() {
     const problem = validateStepTitle(newStep);
@@ -230,10 +247,23 @@ export function GoalDetailScreen() {
     );
   }
 
+  // Opens the reminder form for a goal that already has one (the "Reset" action).
+  function startEditing() {
+    setError(null);
+    setEditing(true);
+  }
+
+  // Closes the form without saving and restores the saved values.
+  function cancelEditing() {
+    setEditing(false);
+    setError(null);
+    load();
+  }
+
   async function saveReminderNow() {
-    if (!isValidTime(time)) return setError("Use 24-hour time, like 08:30.");
+    if (!isValidTime(time)) return setError("Pick a time for the reminder.");
     if (freq === "once" && !isValidDate(date))
-      return setError("Pick a date in the format YYYY-MM-DD.");
+      return setError("Pick a date for the reminder.");
 
     const [hh, mm] = time.split(":").map(Number);
     let stored: Date;
@@ -270,9 +300,10 @@ export function GoalDetailScreen() {
         });
 
         setPermissionOff(false);
+        setEditing(false);
 
         Alert.alert(
-          "Reminder set successfully!",
+          "Reminder set",
           "Your reminder has been saved and scheduled.",
         );
       } catch (e) {
@@ -329,8 +360,11 @@ export function GoalDetailScreen() {
     run(async () => {
       await cancelReminder(reminder?.notification_id);
       await deleteReminder(goal!.id);
+      setEditing(false);
     });
   }
+
+  const showReminderForm = !reminder || editing;
 
   return (
     <SafeAreaView style={styles.safe} edges={["bottom"]}>
@@ -342,7 +376,9 @@ export function GoalDetailScreen() {
           <Text style={type.hero}>{goal.title}</Text>
           <Text style={type.small}>
             {goal.category} · {STATUS_LABEL[goal.status]}
-            {goal.target_date ? ` · Target ${goal.target_date}` : ""}
+            {goal.target_date
+              ? ` · Target ${formatIsoDate(goal.target_date)}`
+              : ""}
           </Text>
           {goal.description ? (
             <Text style={[type.body, { marginTop: space.xs }]}>
@@ -507,8 +543,9 @@ export function GoalDetailScreen() {
           </View>
         </View>
 
-        <Card style={{ gap: space.sm }}>
+        <Card style={{ gap: space.md }}>
           <Text style={type.title}>Reminder</Text>
+
           {permissionOff ? (
             <View style={{ gap: space.sm }}>
               <Text style={type.body}>
@@ -523,50 +560,29 @@ export function GoalDetailScreen() {
             </View>
           ) : null}
 
-          <View style={{ flexDirection: "row", gap: space.xs }}>
-            <Chip
-              label="Daily"
-              selected={freq === "daily"}
-              onPress={() => setFreq("daily")}
-            />
-            <Chip
-              label="Once"
-              selected={freq === "once"}
-              onPress={() => setFreq("once")}
-            />
-          </View>
-          <Field
-            label="Time (24-hour)"
-            value={time}
-            onChangeText={setTime}
-            placeholder="08:00"
-            maxLength={5}
-            keyboardType="numbers-and-punctuation"
-          />
-          {freq === "once" ? (
-            <Field
-              label="Date"
-              value={date}
-              onChangeText={setDate}
-              placeholder="YYYY-MM-DD"
-              maxLength={10}
-              autoCapitalize="none"
-            />
-          ) : null}
+          {reminder && !editing ? (
+            <View style={{ gap: space.md }}>
+              <View style={styles.reminderSummary}>
+                <View style={styles.reminderIcon}>
+                  <Ionicons
+                    name={
+                      reminder.is_enabled
+                        ? "notifications"
+                        : "notifications-off-outline"
+                    }
+                    size={20}
+                    color={colors.purple}
+                  />
+                </View>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={type.label}>{reminderWhen}</Text>
+                  <Text style={type.small}>
+                    {reminder.is_enabled ? "On" : "Paused"} · uses this phone's
+                    time zone
+                  </Text>
+                </View>
+              </View>
 
-          <Button
-            label={reminder ? "Update reminder" : "Set reminder"}
-            onPress={onSaveReminderPress}
-            loading={busy}
-          />
-
-          {reminder ? (
-            <View style={{ gap: space.xs }}>
-              <Text style={type.small}>
-                {reminder.is_enabled ? "On" : "Paused"} ·{" "}
-                {reminder.frequency === "daily" ? "every day" : "once"} ·
-                reminders use this phone's time zone
-              </Text>
               <View style={{ flexDirection: "row", gap: space.sm }}>
                 <Button
                   label={reminder.is_enabled ? "Pause" : "Resume"}
@@ -575,12 +591,64 @@ export function GoalDetailScreen() {
                   style={{ flex: 1 }}
                 />
                 <Button
-                  label="Remove"
-                  variant="ghost"
-                  onPress={removeReminder}
+                  label="Reset"
+                  variant="secondary"
+                  onPress={startEditing}
                   style={{ flex: 1 }}
                 />
               </View>
+              <Button
+                label="Remove reminder"
+                variant="danger"
+                onPress={removeReminder}
+              />
+            </View>
+          ) : null}
+
+          {showReminderForm ? (
+            <View style={{ gap: space.md }}>
+              <View>
+                <Text style={[type.small, { marginBottom: space.xs }]}>
+                  How often?
+                </Text>
+                <View style={{ flexDirection: "row", gap: space.xs }}>
+                  <Chip
+                    label="Every day"
+                    selected={freq === "daily"}
+                    onPress={() => setFreq("daily")}
+                  />
+                  <Chip
+                    label="Once"
+                    selected={freq === "once"}
+                    onPress={() => setFreq("once")}
+                  />
+                </View>
+              </View>
+
+              <TimeField label="Time" value={time} onChange={setTime} />
+
+              {freq === "once" ? (
+                <DateField
+                  label="Date"
+                  value={date}
+                  onChange={setDate}
+                  minDate={new Date()}
+                  placeholder="Pick a date"
+                />
+              ) : null}
+
+              <Button
+                label={reminder ? "Save new reminder" : "Set reminder"}
+                onPress={onSaveReminderPress}
+                loading={busy}
+              />
+              {reminder ? (
+                <Button
+                  label="Cancel"
+                  variant="ghost"
+                  onPress={cancelEditing}
+                />
+              ) : null}
             </View>
           ) : null}
         </Card>
@@ -626,5 +694,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: space.sm,
     paddingVertical: 12,
+  },
+  reminderSummary: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.sm,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: space.md,
+  },
+  reminderIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.purpleSoft,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
