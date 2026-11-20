@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Someday dreams</title>
+  <style>
+    body { margin: 0; font-family: system-ui, -apple-system, sans-serif; background: #E8DCC4; color: #1F3D2B; }
+    main { max-width: 640px; margin: 0 auto; padding: 32px 16px; }
+    h1 { font-size: 30px; margin: 0 0 4px; }
+    h2 { font-size: 20px; margin: 4px 0; }
+    .muted { color: #55695B; }
+    .card { background: #FBF7EE; border: 1px solid #D4C8AE; border-radius: 16px; padding: 18px; margin-top: 14px; }
+    .bar { height: 10px; background: #D9CDB2; border-radius: 999px; overflow: hidden; margin: 10px 0; }
+    .fill { height: 100%; background: #8B5CF6; }
+  </style>
+</head>
+<body>
+  <main id="app"><p class="muted">Loading…</p></main>
+  <script>
+    // The app puts the Supabase address in the link (?api=...), so nothing here needs editing.
+    // Only links to your own Supabase project's public-profile function are accepted.
+    const params = new URLSearchParams(location.search);
+    const slug = params.get("u") || "";
+    const api = params.get("api") || "";
+    const apiOk = /^https:\/\/[a-z0-9]+\.supabase\.co\/functions\/v1\/public-profile\/$/.test(api);
+
+    const app = document.getElementById("app");
+    const el = (tag, cls, text) => {
+      const node = document.createElement(tag);
+      if (cls) node.className = cls;
+      if (text !== undefined) node.textContent = text; // textContent keeps user text safe
+      return node;
+    };
+    const show = (nodes) => app.replaceChildren(...nodes);
+    const notFound = () => show([
+      el("h1", "", "Page not found"),
+      el("p", "muted", "This page is private or the link is incomplete."),
+    ]);
+
+    if (!apiOk || !/^[a-z0-9-]{3,30}$/.test(slug)) {
+      notFound();
+    } else {
+      fetch(api + encodeURIComponent(slug))
+        .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
+        .then((data) => {
+          const nodes = [
+            el("h1", "", `${data.name}'s someday dreams`),
+            el("p", "muted", "Following along, one small step at a time."),
+          ];
+          if (data.goals.length === 0) {
+            nodes.push(el("p", "muted", "No dreams shared yet."));
+          }
+          for (const g of data.goals) {
+            const card = el("div", "card");
+            const state = g.status === "completed" ? "Completed" : "In progress";
+            card.appendChild(el("div", "muted", `${g.category} · ${state}`));
+            card.appendChild(el("h2", "", g.title));
+            if (g.totalSteps === 0) {
+              card.appendChild(el("p", "muted", "Just getting started."));
+            } else {
+              const pct = Math.round((g.doneSteps / g.totalSteps) * 100);
+              const bar = el("div", "bar");
+              const fill = el("div", "fill");
+              fill.style.width = pct + "%";
+              bar.appendChild(fill);
+              card.appendChild(bar);
+              card.appendChild(el("p", "muted", `${pct}% · ${g.doneSteps} of ${g.totalSteps} steps`));
+            }
+            nodes.push(card);
+          }
+          nodes.push(el("p", "muted", "Made with SomedayDone"));
+          show(nodes);
+        })
+        .catch(notFound);
+    }
+  </script>
+</body>
+</html>
