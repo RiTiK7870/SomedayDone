@@ -3,7 +3,7 @@ import { Linking, Platform } from 'react-native';
 import { AppError } from './errors';
 import type { Frequency } from '../types';
 
-const CHANNEL_ID = 'reminders';
+export const CHANNEL_ID = 'reminders';
 
 // Show reminders as banners even while the app is open.
 Notifications.setNotificationHandler({
@@ -15,7 +15,7 @@ Notifications.setNotificationHandler({
   }),
 });
 
-async function ensureChannel(): Promise<void> {
+export async function ensureChannel(): Promise<void> {
   if (Platform.OS !== 'android') return;
   await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
     name: 'Goal reminders',

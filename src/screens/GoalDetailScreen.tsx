@@ -18,6 +18,8 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { StepSuggester } from "../components/StepSuggester";
 import { scheduleDeletion, subscribeUndo } from "../lib/undo";
+import { shareGoalProgress } from "../lib/share";
+import { PartnersCard } from "../components/PartnersCard";
 import type { RootStackParamList } from "../navigation/RootNavigator";
 import {
   addStep,
@@ -137,7 +139,13 @@ export function GoalDetailScreen() {
   );
 
   // Refresh when a deletion is undone or committed elsewhere.
-  useEffect(() => subscribeUndo(() => { load(); }), [load]);
+  useEffect(
+    () =>
+      subscribeUndo(() => {
+        load();
+      }),
+    [load],
+  );
 
   // Runs a write, then reloads. Blocks double taps and reports failures without losing input.
   async function run(action: () => Promise<unknown>) {
@@ -237,7 +245,8 @@ export function GoalDetailScreen() {
       );
     } else {
       run(async () => {
-        if (reminder) await stopGoalReminder(goal!.id, reminder.notification_id);
+        if (reminder)
+          await stopGoalReminder(goal!.id, reminder.notification_id);
         await setGoalStatus(goal!.id, "archived");
       });
     }
@@ -430,6 +439,12 @@ export function GoalDetailScreen() {
           )}
         </Card>
 
+        <Button
+          label="Share progress"
+          variant="secondary"
+          onPress={() => shareGoalProgress(goal, session?.user.id)}
+        />
+
         {allStepsDone ? (
           <Card
             style={{
@@ -458,7 +473,12 @@ export function GoalDetailScreen() {
 
         <View style={{ gap: space.sm }}>
           <Text style={type.title}>Steps</Text>
-          <StepSuggester goal={goal} onAdded={() => { load(); }} />
+          <StepSuggester
+            goal={goal}
+            onAdded={() => {
+              load();
+            }}
+          />
           {steps.length === 0 ? (
             <Text style={type.small}>
               Break this dream into small steps you can finish.
@@ -495,6 +515,25 @@ export function GoalDetailScreen() {
               >
                 {step.title}
               </Text>
+              {!step.is_completed ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Focus on ${step.title}`}
+                  onPress={() =>
+                    navigation.navigate("Focus", {
+                      goalId: goal.id,
+                      stepId: step.id,
+                    })
+                  }
+                  hitSlop={6}
+                >
+                  <Ionicons
+                    name="timer-outline"
+                    size={20}
+                    color={colors.purple}
+                  />
+                </Pressable>
+              ) : null}
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Move step up"
@@ -560,6 +599,10 @@ export function GoalDetailScreen() {
             />
           </View>
         </View>
+
+        {goal.user_id === session?.user.id ? (
+          <PartnersCard goal={goal} />
+        ) : null}
 
         <Card style={{ gap: space.md }}>
           <Text style={type.title}>Reminder</Text>
@@ -631,7 +674,8 @@ export function GoalDetailScreen() {
 
           {!goalActive && !reminder ? (
             <Text style={type.small}>
-              Reminders are for active goals. Reopen or restore this goal to set one.
+              Reminders are for active goals. Reopen or restore this goal to set
+              one.
             </Text>
           ) : null}
 

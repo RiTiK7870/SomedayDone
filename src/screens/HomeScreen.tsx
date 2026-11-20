@@ -23,6 +23,9 @@ import {
 } from "../lib/goals";
 import { userMessage } from "../lib/errors";
 import { subscribeUndo } from "../lib/undo";
+import { currentStreak } from "../lib/streaks";
+import { registerPushIfAllowed } from "../lib/push";
+import { listIncomingInvites } from "../lib/partners";
 import type { Goal, Step } from "../types";
 import {
   Button,
@@ -49,6 +52,7 @@ export function HomeScreen() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [inviteCount, setInviteCount] = useState(0);
 
   const load = useCallback(async () => {
     try {
@@ -69,6 +73,21 @@ export function HomeScreen() {
   );
 
   useEffect(() => subscribeUndo(() => { load(); }), [load]);
+
+  useEffect(() => {
+    if (!session?.user.id) return;
+    registerPushIfAllowed().catch(() => undefined);
+  }, [session?.user.id]);
+
+  const inviteEmail = session?.user.email ?? "";
+  useFocusEffect(
+    useCallback(() => {
+      if (!inviteEmail) return;
+      listIncomingInvites(inviteEmail)
+        .then((rows) => setInviteCount(rows.length))
+        .catch(() => setInviteCount(0));
+    }, [inviteEmail]),
+  );
 
   const firstName = (
     session?.user.user_metadata?.full_name as string | undefined
@@ -113,6 +132,22 @@ export function HomeScreen() {
           </Text>
         </View>
 
+        {inviteCount > 0 ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => navigation.navigate("Partners")}
+            style={styles.inviteBanner}
+          >
+            <Ionicons name="people-outline" size={22} color={colors.purple} />
+            <Text style={[type.label, { flex: 1 }]}>
+              {inviteCount === 1
+                ? "A friend invited you to follow a goal"
+                : `${inviteCount} friends invited you to follow goals`}
+            </Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+          </Pressable>
+        ) : null}
+
         {error ? <ErrorBanner message={error} onRetry={load} /> : null}
 
         {goals.length > 0 ? (
@@ -124,6 +159,8 @@ export function HomeScreen() {
               <Stat label="Finished" value={totals.goalsCompleted} />
               <View style={styles.statDivider} />
               <Stat label="Steps done" value={totals.stepsCompleted} />
+              <View style={styles.statDivider} />
+              <Stat label="Day streak" value={currentStreak(goals)} />
             </View>
           </View>
         ) : null}
@@ -286,6 +323,16 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.sand },
   content: { padding: space.md, paddingBottom: 120, gap: space.lg },
 
+  inviteBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.sm,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radius.md,
+    padding: space.md,
+  },
   summary: {
     backgroundColor: colors.forest,
     borderRadius: radius.lg,

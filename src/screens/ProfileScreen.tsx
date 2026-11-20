@@ -16,6 +16,7 @@ import { userMessage } from "../lib/errors";
 import { cancelAllReminders } from "../lib/reminders";
 import { weeklyStepCounts } from "../lib/history";
 import { WeeklyChart } from "../components/WeeklyChart";
+import { ProfileExtras } from "../components/ProfileExtras";
 import type { Goal } from "../types";
 import { Button, Card, ErrorBanner } from "../components/ui";
 import { colors, radius, space, type } from "../theme";
@@ -131,6 +132,8 @@ export function ProfileScreen() {
           </Text>
           <WeeklyChart buckets={buckets} />
         </Card>
+
+        <ProfileExtras goals={goals} />
 
         <Card style={{ gap: space.sm }}>
           <Text style={type.title}>About</Text>

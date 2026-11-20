@@ -13,6 +13,8 @@ import { ProfileScreen } from '../screens/ProfileScreen';
 import { GoalDetailScreen } from '../screens/GoalDetailScreen';
 import { GoalFormScreen } from '../screens/GoalFormScreen';
 import { TemplatesScreen } from '../screens/TemplatesScreen';
+import { PartnersScreen } from '../screens/PartnersScreen';
+import { FocusScreen } from '../screens/FocusScreen';
 
 export type TabParamList = {
   Home: undefined;
@@ -26,6 +28,8 @@ export type RootStackParamList = {
   GoalDetail: { goalId: string };
   GoalForm: { goalId?: string } | undefined;
   Templates: undefined;
+  Partners: undefined;
+  Focus: { goalId: string; stepId: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -99,6 +103,8 @@ export function RootNavigator() {
               options={{ presentation: 'modal', title: 'Goal' }}
             />
             <Stack.Screen name="Templates" component={TemplatesScreen} options={{ title: 'Start from a template' }} />
+            <Stack.Screen name="Partners" component={PartnersScreen} options={{ title: 'Accountability partners' }} />
+            <Stack.Screen name="Focus" component={FocusScreen} options={{ title: 'Focus' }} />
           </>
         ) : (
           <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
