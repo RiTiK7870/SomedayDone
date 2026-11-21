@@ -86,6 +86,32 @@ export async function cancelReminder(notificationId: string | null | undefined):
   await Notifications.cancelScheduledNotificationAsync(notificationId).catch(() => undefined);
 }
 
+// Schedules a test notification 10 seconds from now, using the same channel as reminders.
+// It is not tagged with a goal, so cancelling a goal never removes it.
+export async function sendTestNotification(): Promise<void> {
+  if (!(await requestNotificationPermission())) {
+    throw new AppError('Notifications are off for SomedayDone.', 'PERMISSION_DENIED');
+  }
+  await ensureChannel();
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: 'SomedayDone test',
+      body: 'If you see this, notifications work on your phone.',
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+      seconds: 10,
+      channelId: CHANNEL_ID,
+    },
+  });
+}
+
+// How many reminder notifications are scheduled for this goal.
+export async function countScheduledFor(goalId: string): Promise<number> {
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync().catch(() => []);
+  return scheduled.filter((n) => n.content.data?.goalId === goalId).length;
+}
+
 // Cancels every scheduled notification that belongs to a goal. This catches reminders
 // whose saved notification ID is missing or out of date.
 export async function cancelGoalNotifications(goalId: string): Promise<void> {

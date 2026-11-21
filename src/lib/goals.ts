@@ -36,7 +36,7 @@ export async function listGoals(): Promise<Goal[]> {
     .map((goal) => ({
       ...goal,
       goal_steps: (Array.isArray(goal.goal_steps) ? goal.goal_steps : []).filter(
-        (s) => !isPendingDeletion(`step:${s.id}`),
+        (s: { id: string }) => !isPendingDeletion(`step:${s.id}`),
       ),
       reminders: Array.isArray(goal.reminders) ? goal.reminders : [],
     })) as Goal[];
@@ -55,7 +55,7 @@ export async function getGoal(id: string): Promise<Goal> {
   return {
     ...data,
     goal_steps: (Array.isArray(data.goal_steps) ? data.goal_steps : []).filter(
-      (s) => !isPendingDeletion(`step:${s.id}`),
+      (s: { id: string }) => !isPendingDeletion(`step:${s.id}`),
     ),
     reminders: Array.isArray(data.reminders) ? data.reminders : [],
   } as Goal;

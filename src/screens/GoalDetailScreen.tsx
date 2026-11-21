@@ -44,6 +44,7 @@ import { isValidDate, isValidTime, validateStepTitle } from "../lib/validate";
 import {
   cancelReminder,
   cancelGoalNotifications,
+  countScheduledFor,
   hasNotificationPermission,
   nextFireDate,
   openSystemNotificationSettings,
@@ -113,6 +114,17 @@ export function GoalDetailScreen() {
       const r =
         fetched ?? (Array.isArray(g.reminders) ? g.reminders[0] : undefined);
       setSavedReminder(r ?? null);
+
+      // A one-time reminder whose time has passed is finished. Clear it so the user can set a new one.
+      if (
+        r &&
+        r.frequency === "once" &&
+        new Date(r.reminder_time).getTime() <= Date.now()
+      ) {
+        await cancelReminder(r.notification_id);
+        await deleteReminder(goalId);
+        setSavedReminder(null);
+      }
 
       // A finished or archived goal must not keep reminding. Stop any leftover reminder.
       if (r && r.is_enabled && !isActive(g)) {
@@ -664,6 +676,7 @@ export function GoalDetailScreen() {
                   This goal is finished, so its reminder has stopped.
                 </Text>
               )}
+
               <Button
                 label="Remove reminder"
                 variant="danger"

@@ -70,13 +70,13 @@ export async function listOwnedPartners(userId: string): Promise<OwnedPartnerRow
     goal_id: string;
     invite_email: string;
     status: 'pending' | 'accepted';
-    goals: { title: string } | null;
+    goals: { title: string } | { title: string }[] | null;
   }) => ({
     id: r.id,
     goal_id: r.goal_id,
     invite_email: r.invite_email,
     status: r.status,
-    goal_title: r.goals?.title ?? 'A goal',
+    goal_title: (Array.isArray(r.goals) ? r.goals[0]?.title : r.goals?.title) ?? 'A goal',
   }));
 }
 
